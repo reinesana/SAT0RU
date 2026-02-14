@@ -2,82 +2,99 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>JJK: Cursed Technique</title>
+    <title>JJK: Cursed Technique Visualizer</title>
     <style>
-        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', sans-serif; }
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', sans-serif; transition: transform 0.05s linear; }
     
         #ui {
             position: absolute;
-            top: 10%;
+            top: 5%;
             width: 100%;
             text-align: center;
             color: #fff;
             pointer-events: none;
-            z-index: 10;
+            z-index: 100;
         }
         
         h1 { 
             font-size: 3rem; margin: 0; letter-spacing: 10px; 
             font-weight: 900; 
-            text-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
             background: linear-gradient(to bottom, #fff, #888);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
         }
         
         #technique-name { 
-            font-size: 1.2rem; color: #00ffff; margin-top: 15px; 
+            font-size: 1.2rem; color: #00ffff; margin-top: 10px; 
             font-weight: bold; letter-spacing: 4px;
             text-transform: uppercase;
-            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.8);
         }
 
-        /* Large Centered Camera Hub - Taller for Reel Context */
+        #help-bar {
+            position: absolute;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(0, 255, 255, 0.3);
+            border-radius: 15px;
+            padding: 20px;
+            color: #fff;
+            font-size: 0.75rem;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        .help-item { margin-bottom: 10px; line-height: 1.2; }
+        .help-item b { color: #00ffff; display: block; text-transform: uppercase; }
+
         #video-container {
             position: absolute;
-            bottom: 2%;
-            left: 18%;
+            bottom: 5%;
+            left: 18%; 
             transform: translateX(-50%) scaleX(-1);
-            width: 85vw;
-            max-width: 450px;
-            height: 42vh; 
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            z-index: 20;
+            width: 320px;  
+            height: 320px; 
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            z-index: 50;
             background-color: #000; 
-            border-radius: 25px;
+            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 0 40px rgba(0,0,0,0.9);
         }
 
-        video { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
-        #output_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-
-        #grain {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 5;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
-        }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #output_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 60; pointer-events: none; }
+        
+        /* Ensure the renderer canvas stays behind the UI but can be transformed */
+        canvas { display: block; }
     </style>
     
     <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js", "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 </head>
 <body>
-
-    <div id="grain"></div>
-
     <div id="ui">
         <h1>呪術廻戦</h1>
-        <div id="technique-name">CURSED ENERGY</div>
+        <div id="technique-name">NEUTRAL STATE</div>
+    </div>
+
+    <div id="help-bar">
+        <div class="help-item"><b>Infinite Void</b> Fingers Crossed</div>
+        <div class="help-item"><b>Hollow Purple</b> Pinch Gesture</div>
+        <div class="help-item"><b>Lapse: Blue</b> Flat Hand (Spread)</div>
+        <div class="help-item"><b>RCT: Red</b> Index Finger Up</div>
+        <div class="help-item"><b>Shrine </b> Flat Hand (Closed)</div>
+        <div class="help-item"><b>Ratio 7:3</b> Back-hand Chop</div>
+        <div class="help-item"><b>Idle Transfig.</b> Thumbs Touching</div>
+        <div class="help-item"><b>Shadow Garden</b> Hands Overlapping</div>
+        <div class="help-item"><b>Black Flash</b> Closed Fist</div>
     </div>
 
     <div id="video-container">
@@ -91,14 +108,12 @@
     import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
     import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-    // --- Scene & Rendering ---
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.z = 55;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     document.body.appendChild(renderer.domElement);
 
     const composer = new EffectComposer(renderer);
@@ -123,131 +138,140 @@
     const particles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.3, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
     scene.add(particles);
 
-    // Technique Functions 
-    function getRed(i) {
-        if(i < COUNT * 0.1) {
-            const r = Math.random() * 9;
-            const theta = Math.random() * 6.28; const phi = Math.acos(2 * Math.random() - 1);
-            return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi), r: 3, g: 0.1, b: 0.1, s: 2.5 };
-        } else {
-            const armCount = 3; const t = (i / COUNT); 
-            const angle = t * 15 + ((i % armCount) * (Math.PI * 2 / armCount));
-            const radius = 2 + (t * 40); 
-            return { x: radius * Math.cos(angle), y: radius * Math.sin(angle), z: (Math.random() - 0.5) * (10 * t), r: 0.8, g: 0, b: 0, s: 1.0 };
-        }
+    function getIdle(i) {
+        const t = (i / COUNT) * Math.PI * 12;
+        const r = 8 + Math.sin(t * 0.5) * 4;
+        return { x: r * Math.cos(t), y: (i / COUNT) * 60 - 30, z: r * Math.sin(t), r: 0.9, g: 0.6, b: 0.7, s: 2.0 };
     }
-
-    function getVoid(i) {
-        if (i < COUNT * 0.15) {
-            const angle = Math.random() * Math.PI * 2;
-            return { x: 26 * Math.cos(angle), y: 26 * Math.sin(angle), z: (Math.random()-0.5) * 1, r: 1, g: 1, b: 1, s: 2.5 };
-        } else {
-            const radius = 30 + Math.random() * 90;
-            const theta = Math.random() * Math.PI * 2;
-            const phi = Math.acos(2 * Math.random() - 1);
-            return { x: radius * Math.sin(phi) * Math.cos(theta), y: radius * Math.sin(phi) * Math.sin(theta), z: radius * Math.cos(phi), r: 0.1, g: 0.6, b: 1.0, s: 0.7 };
-        }
+    function getRatio(i) {
+        const isMajorLine = i % 10 < 3; 
+        const x = (i % 20 - 10) * 4;
+        const y = (Math.floor(i / 20) % 20 - 10) * 4;
+        return { x: x, y: y, z: (Math.random() - 0.5) * 5, r: isMajorLine ? 1.0 : 0.8, g: isMajorLine ? 0.8 : 0.2, b: 0.1, s: isMajorLine ? 2.5 : 0.8 };
     }
+    function getRed(i) { if(i < COUNT * 0.1) { const r = Math.random() * 9; const theta = Math.random() * 6.28; const phi = Math.acos(2 * Math.random() - 1); return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi), r: 3, g: 0.1, b: 0.1, s: 2.5 }; } else { const armCount = 3; const t = (i / COUNT); const angle = t * 15 + ((i % armCount) * (Math.PI * 2 / armCount)); const radius = 2 + (t * 40); return { x: radius * Math.cos(angle), y: radius * Math.sin(angle), z: (Math.random() - 0.5) * (10 * t), r: 0.8, g: 0, b: 0, s: 1.0 }; } }
+    function getBlue(i) { const r = 15 + Math.random() * 30; const theta = Math.random() * Math.PI * 2; const phi = Math.acos(2 * Math.random() - 1); return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi), r: 0.1, g: 0.3, b: 1.0, s: 2.0 }; }
+    function getBlackFlash(i) { if (i < COUNT * 0.2) { const angle = Math.random() * Math.PI * 2; const radius = 5 + Math.random() * 15; return { x: radius * Math.cos(angle), y: radius * Math.sin(angle), z: (Math.random() - 0.5) * 20, r: 0.0, g: 0.0, b: 0.0, s: 3.0 }; } else return { x: (Math.random() - 0.5) * 100, y: (Math.random() - 0.5) * 100, z: (Math.random() - 0.5) * 100, r: 0.1, g: 0.1, b: 0.1, s: 0.5 }; }
+    function getVoid(i) { if (i < COUNT * 0.15) { const angle = Math.random() * Math.PI * 2; return { x: 26 * Math.cos(angle), y: 26 * Math.sin(angle), z: (Math.random()-0.5) * 1, r: 1, g: 1, b: 1, s: 2.5 }; } else { const radius = 30 + Math.random() * 90; const theta = Math.random() * Math.PI * 2; const phi = Math.acos(2 * Math.random() - 1); return { x: radius * Math.sin(phi) * Math.cos(theta), y: radius * Math.sin(phi) * Math.sin(theta), z: radius * Math.cos(phi), r: 0.1, g: 0.6, b: 1.0, s: 0.7 }; } }
+    function getPurple(i) { if (Math.random() > 0.8) return { x: (Math.random() - 0.5) * 100, y: (Math.random() - 0.5) * 100, z: (Math.random() - 0.5) * 100, r: 0.5, g: 0.5, b: 0.7, s: 0.8 }; const r = 20; const theta = Math.random() * Math.PI * 2; const phi = Math.acos(2 * Math.random() - 1); return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi), r: 0.6, g: 0.5, b: 1.0, s: 2.5 }; }
+    function getShadowGarden(i) { const x = (Math.random() - 0.5) * 80; const z = (Math.random() - 0.5) * 80; const y = Math.random() > 0.9 ? (Math.random() * 40 - 20) : -25; return { x: x, y: y, z: z, r: 0.05, g: 0.05, b: 0.1, s: 1.5 }; }
+    function getShrine(i) { const total = COUNT; if (i < total * 0.3) return { x: (Math.random()-0.5)*80, y: -15, z: (Math.random()-0.5)*80, r: 0.4, g: 0, b: 0, s: 0.8 }; else if (i < total * 0.4) { const px = ((i%4)<2?1:-1)*12; const pz = ((i%4)%2==0?1:-1)*8; return { x: px+(Math.random()-0.5)*2, y: -15+Math.random()*30, z: pz+(Math.random()-0.5)*2, r: 0.2, g: 0.2, b: 0.2, s: 0.6 }; } else if (i < total * 0.6) { const t = Math.random() * Math.PI * 2; const rad = Math.random() * 30; const curve = Math.pow(rad/30, 2) * 10; return { x: rad*Math.cos(t), y: 15 - curve + (Math.random()*2), z: rad*Math.sin(t)*0.6, r: 0.6, g: 0, b: 0, s: 0.6 }; } else return { x: 0, y: 0, z: 0, r: 0, g: 0, b: 0, s: 0 }; }
 
-    function getPurple(i) {
-        if (Math.random() > 0.8) return { x: (Math.random() - 0.5) * 100, y: (Math.random() - 0.5) * 100, z: (Math.random() - 0.5) * 100, r: 0.5, g: 0.5, b: 0.7, s: 0.8 };
-        const r = 20; const theta = Math.random() * Math.PI * 2; const phi = Math.acos(2 * Math.random() - 1);
-        return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi), r: 0.6, g: 0.5, b: 1.0, s: 2.5 };
-    }
-
-    function getShrine(i) {
-        const total = COUNT;
-        if (i < total * 0.3) return { x: (Math.random()-0.5)*80, y: -15, z: (Math.random()-0.5)*80, r: 0.4, g: 0, b: 0, s: 0.8 };
-        else if (i < total * 0.4) {
-            const px = ((i%4)<2?1:-1)*12; const pz = ((i%4)%2==0?1:-1)*8;
-            return { x: px+(Math.random()-0.5)*2, y: -15+Math.random()*30, z: pz+(Math.random()-0.5)*2, r: 0.2, g: 0.2, b: 0.2, s: 0.6 };
-        } else if (i < total * 0.6) {
-            const t = Math.random() * Math.PI * 2; const rad = Math.random() * 30;
-            const curve = Math.pow(rad/30, 2) * 10; 
-            return { x: rad*Math.cos(t), y: 15 - curve + (Math.random()*2), z: rad*Math.sin(t)*0.6, r: 0.6, g: 0, b: 0, s: 0.6 };
-        } else return { x: 0, y: 0, z: 0, r: 0, g: 0, b: 0, s: 0 };
-    }
-
-    // Hand Tracking
+    let techBuffer = [];
+    const BUFFER_SIZE = 15; 
     let currentTech = 'neutral';
     let shakeIntensity = 0;
+    let glowColor = '#00ffff';
+
     const videoElement = document.querySelector('.input_video');
     const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
-    let glowColor = '#00ffff';
 
     const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7 });
+    hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
 
     hands.onResults((results) => {
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         let detected = 'neutral';
+        const handsDetected = results.multiHandLandmarks;
 
-        if (results.multiHandLandmarks) {
-            results.multiHandLandmarks.forEach((lm) => {
-                drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, {color: glowColor, lineWidth: 5});
+        if (handsDetected && handsDetected.length > 0) {
+            handsDetected.forEach((lm) => {
+                drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, {color: glowColor, lineWidth: 4});
                 drawLandmarks(canvasCtx, lm, {color: '#fff', lineWidth: 1, radius: 2});
-
-                const isUp = (t, p) => lm[t].y < lm[p].y;
-                const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
-                
-                if (pinch < 0.04) detected = 'purple';
-                else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18)) detected = 'shrine';
-                else if (isUp(8,6) && isUp(12,10) && !isUp(16,14)) detected = 'void';
-                else if (isUp(8,6) && !isUp(12,10)) detected = 'red';
             });
+
+            if (handsDetected.length === 2 && results.multiHandedness) {
+                const h1 = handsDetected[0], h2 = handsDetected[1];
+                const palmDist = Math.hypot(h1[0].x - h2[0].x, h1[0].y - h2[0].y);
+                const thumbTouch = Math.hypot(h1[4].x - h2[4].x, h1[4].y - h2[4].y);
+                if (palmDist > 0.08 && palmDist < 0.15) detected = 'shadowgarden';
+                else if (thumbTouch < 0.05) detected = 'idle'; 
+            }
+
+            if (detected === 'neutral') {
+                handsDetected.forEach((lm) => {
+                    const isUp = (t, p) => lm[t].y < lm[p].y;
+                    const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
+                    const fingerDist = Math.hypot(lm[8].x - lm[12].x, lm[8].y - lm[12].y);
+                    const angle = Math.atan2(lm[12].y - lm[0].y, lm[12].x - lm[0].x);
+                    const isFlat = isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18);
+
+                    if (pinch < 0.04) detected = 'purple';
+                    else if (isFlat && fingerDist > 0.1) detected = 'blue';
+                    else if (isFlat && fingerDist < 0.05) detected = 'shrine'; 
+                    else if (isFlat && Math.abs(angle) > 0.5 && Math.abs(angle) < 2.5) detected = 'ratio';
+                    else if (isUp(8,6) && isUp(12,10) && !isUp(16,14)) detected = 'void';
+                    else if (isUp(8,6) && !isUp(12,10)) detected = 'red';
+                    else if (!isUp(8,6) && !isUp(12,10) && !isUp(16,14) && !isUp(20,18)) detected = 'blackflash';
+                });
+            }
         }
-        updateState(detected);
+        techBuffer.push(detected);
+        if (techBuffer.length > BUFFER_SIZE) techBuffer.shift();
+        let counts = {}; let mostFreq = 'neutral'; let max = 0;
+        techBuffer.forEach(t => { counts[t] = (counts[t] || 0) + 1; if (counts[t] > max) { max = counts[t]; mostFreq = t; } });
+        updateState(mostFreq);
     });
 
     function updateState(tech) {
-        if(currentTech === tech) return;
+        if (currentTech === tech) return;
         currentTech = tech;
         const nameEl = document.getElementById('technique-name');
-        shakeIntensity = tech !== 'neutral' ? 0.4 : 0;
+        shakeIntensity = (tech === 'shrine') ? 1.5 : (tech !== 'neutral' ? 0.3 : 0);
 
-        if(tech === 'shrine') { glowColor = '#ff0000'; nameEl.innerText = "Domain Expansion: Malevolent Shrine"; bloomPass.strength = 2.5; }
-        else if(tech === 'purple') { glowColor = '#bb00ff'; nameEl.innerText = "Secret Technique: Hollow Purple"; bloomPass.strength = 4.0; }
-        else if(tech === 'void') { glowColor = '#00ffff'; nameEl.innerText = "Domain Expansion: Infinite Void"; bloomPass.strength = 2.0; }
-        else if(tech === 'red') { glowColor = '#ff3333'; nameEl.innerText = "Reverse Cursed Technique: Red"; bloomPass.strength = 2.5; }
-        else { glowColor = '#00ffff'; nameEl.innerText = "Neutral State"; bloomPass.strength = 1.0; }
+        switch (tech) {
+            case 'shrine': glowColor = '#ff0000'; nameEl.innerText = "Malevolent Shrine"; bloomPass.strength = 3.0; break;
+            case 'purple': glowColor = '#bb00ff'; nameEl.innerText = "Hollow Purple"; bloomPass.strength = 4.0; break;
+            case 'void': glowColor = '#00ffff'; nameEl.innerText = "Infinite Void"; bloomPass.strength = 2.0; break;
+            case 'red': glowColor = '#ff3333'; nameEl.innerText = "RCT: Red"; bloomPass.strength = 2.5; break;
+            case 'blue': glowColor = '#0033ff'; nameEl.innerText = "Lapse: Blue"; bloomPass.strength = 3.0; break;
+            case 'blackflash': glowColor = '#000000'; nameEl.innerText = "Black Flash"; bloomPass.strength = 5.0; break;
+            case 'shadowgarden': glowColor = '#101020'; nameEl.innerText = "Shadow Garden"; bloomPass.strength = 1.5; break;
+            case 'idle': glowColor = '#ffb7c5'; nameEl.innerText = "Idle Transfiguration"; bloomPass.strength = 2.8; break;
+            case 'ratio': glowColor = '#ffd700'; nameEl.innerText = "Ratio Technique"; bloomPass.strength = 2.2; break;
+            default: glowColor = '#00ffff'; nameEl.innerText = "Neutral State"; bloomPass.strength = 1.0;
+        }
 
-        for(let i=0; i<COUNT; i++) {
+        for (let i = 0; i < COUNT; i++) {
             let p;
-            if(tech === 'neutral') {
-                if(i < COUNT * 0.05) {
-                    const r = 15 + Math.random()*20; const t = Math.random()*6.28; const ph = Math.random()*3.14;
-                    p = { x: r*Math.sin(ph)*Math.cos(t), y: r*Math.sin(ph)*Math.sin(t), z: r*Math.cos(ph), r: 0.1, g: 0.1, b: 0.2, s: 0.4 };
-                } else p = { x:0, y:0, z:0, r:0, g:0, b:0, s:0 };
-            }
-            else if(tech === 'red') p = getRed(i);
-            else if(tech === 'void') p = getVoid(i);
-            else if(tech === 'purple') p = getPurple(i);
-            else if(tech === 'shrine') p = getShrine(i);
-            
+            if (tech === 'neutral') {
+                if (i < COUNT * 0.05) { const r = 15+Math.random()*20, t = Math.random()*6.28, ph = Math.random()*3.14; p = { x: r*Math.sin(ph)*Math.cos(t), y: r*Math.sin(ph)*Math.sin(t), z: r*Math.cos(ph), r: 0.1, g: 0.1, b: 0.2, s: 0.4 }; }
+                else p = { x: 0, y: 0, z: 0, r: 0, g: 0, b: 0, s: 0 };
+            } 
+            else if (tech === 'red') p = getRed(i);
+            else if (tech === 'void') p = getVoid(i);
+            else if (tech === 'blue') p = getBlue(i);
+            else if (tech === 'blackflash') p = getBlackFlash(i);
+            else if (tech === 'purple') p = getPurple(i);
+            else if (tech === 'shrine') p = getShrine(i);
+            else if (tech === 'shadowgarden') p = getShadowGarden(i);
+            else if (tech === 'idle') p = getIdle(i);
+            else if (tech === 'ratio') p = getRatio(i);
+
             targetPositions[i*3] = p.x; targetPositions[i*3+1] = p.y; targetPositions[i*3+2] = p.z;
             targetColors[i*3] = p.r; targetColors[i*3+1] = p.g; targetColors[i*3+2] = p.b;
             targetSizes[i] = p.s;
         }
     }
 
-    const cameraUtils = new Camera(videoElement, {
-        onFrame: async () => {
-            canvasElement.width = videoElement.videoWidth;
-            canvasElement.height = videoElement.videoHeight;
-            await hands.send({image: videoElement});
-        }, width: 640, height: 480
-    });
+    const cameraUtils = new Camera(videoElement, { onFrame: async () => {
+        canvasElement.width = videoElement.videoWidth; canvasElement.height = videoElement.videoHeight;
+        await hands.send({image: videoElement});
+    }});
     cameraUtils.start();
 
-    // Animation
     function animate() {
         requestAnimationFrame(animate);
         
-        if (shakeIntensity > 0) {
-            renderer.domElement.style.transform = `translate(${(Math.random()-0.5)*shakeIntensity*40}px, ${(Math.random()-0.5)*shakeIntensity*40}px)`;
+        // Shake ONLY the renderer element (the particle background)
+        if (currentTech === 'shrine' && shakeIntensity > 0) {
+            const x = (Math.random() - 0.5) * shakeIntensity * 25;
+            const y = (Math.random() - 0.5) * shakeIntensity * 25;
+            renderer.domElement.style.transform = `translate(${x}px, ${y}px)`;
         } else {
             renderer.domElement.style.transform = 'translate(0,0)';
+            document.body.style.transform = 'translate(0,0)';
         }
 
         const pos = particles.geometry.attributes.position.array;
@@ -255,39 +279,36 @@
         const siz = particles.geometry.attributes.size.array;
 
         for(let i=0; i<COUNT*3; i++) {
-            pos[i] += (targetPositions[i] - pos[i]) * 0.1;
-            col[i] += (targetColors[i] - col[i]) * 0.1;
+            let targetPos = targetPositions[i];
+            
+            // Internal jitter for particles
+            if (currentTech === 'shrine' && shakeIntensity > 0) {
+                targetPos += (Math.random() - 0.5) * shakeIntensity * 5; 
+            }
+
+            pos[i] += (targetPos - pos[i]) * 0.06;
+            col[i] += (targetColors[i] - col[i]) * 0.06;
         }
-        for(let i=0; i<COUNT; i++) siz[i] += (targetSizes[i] - siz[i]) * 0.1;
+
+        for(let i=0; i<COUNT; i++) {
+            siz[i] += (targetSizes[i] - siz[i]) * 0.1;
+        }
 
         particles.geometry.attributes.position.needsUpdate = true;
         particles.geometry.attributes.color.needsUpdate = true;
         particles.geometry.attributes.size.needsUpdate = true;
         
-        // UPDATED ROTATION LOGIC: Locking rotation for Shrine
-        if(currentTech === 'red') {
-            particles.rotation.z -= 0.1;
-        } else if (currentTech === 'purple') {
-            particles.rotation.z += 0.2; 
-            particles.rotation.y += 0.05;
-        } else if (currentTech === 'shrine') {
-            // FORCE UPRIGHT: Reset and freeze all rotations
+        if(currentTech === 'shrine') {
             particles.rotation.set(0, 0, 0); 
+        } else if (currentTech === 'purple') {
+            particles.rotation.z += 0.1;
         } else {
-            // Default Neutral rotation
             particles.rotation.y += 0.005;
         }
 
         composer.render();
     }
     animate();
-
-    window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        composer.setSize(window.innerWidth, window.innerHeight);
-    });
 </script>
 </body>
 </html>
