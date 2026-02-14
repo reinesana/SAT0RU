@@ -137,6 +137,23 @@
         }
     }
 
+    function getBlue(i) {
+        const r = 15 + Math.random() * 30;
+        const theta = Math.random() * Math.PI * 2;
+        const phi = Math.acos(2 * Math.random() - 1);
+        return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi), r: 0.1, g: 0.3, b: 1.0, s: 2.0 };
+    }
+
+    function getBlackFlash(i) {
+        if (i < COUNT * 0.2) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 5 + Math.random() * 15;
+            return { x: radius * Math.cos(angle), y: radius * Math.sin(angle), z: (Math.random() - 0.5) * 20, r: 0.0, g: 0.0, b: 0.0, s: 3.0 };
+        } else {
+            return { x: (Math.random() - 0.5) * 100, y: (Math.random() - 0.5) * 100, z: (Math.random() - 0.5) * 100, r: 0.1, g: 0.1, b: 0.1, s: 0.5 };
+        }
+    }
+
     function getVoid(i) {
         if (i < COUNT * 0.15) {
             const angle = Math.random() * Math.PI * 2;
@@ -190,11 +207,14 @@
 
                 const isUp = (t, p) => lm[t].y < lm[p].y;
                 const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
+                const fingerDistance = Math.hypot(lm[8].x - lm[12].x, lm[8].y - lm[12].y); // Distancia entre índice y medio
                 
                 if (pinch < 0.04) detected = 'purple';
-                else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18)) detected = 'shrine';
-                else if (isUp(8,6) && isUp(12,10) && !isUp(16,14)) detected = 'void';
-                else if (isUp(8,6) && !isUp(12,10)) detected = 'red';
+                else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18) && fingerDistance > 0.1) detected = 'blue'; // Mano abierta (dedos separados)
+                else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18) && fingerDistance < 0.05) detected = 'shrine'; // Mano plana (dedos juntos)
+                else if (isUp(8,6) && isUp(12,10) && !isUp(16,14)) detected = 'void'; // Cross
+                else if (isUp(8,6) && !isUp(12,10)) detected = 'red'; // Index up
+                else if (!isUp(8,6) && !isUp(12,10) && !isUp(16,14) && !isUp(20,18)) detected = 'blackflash'; // Closed fist
             });
         }
         updateState(detected);
@@ -210,6 +230,8 @@
         else if(tech === 'purple') { glowColor = '#bb00ff'; nameEl.innerText = "Secret Technique: Hollow Purple"; bloomPass.strength = 4.0; }
         else if(tech === 'void') { glowColor = '#00ffff'; nameEl.innerText = "Domain Expansion: Infinite Void"; bloomPass.strength = 2.0; }
         else if(tech === 'red') { glowColor = '#ff3333'; nameEl.innerText = "Reverse Cursed Technique: Red"; bloomPass.strength = 2.5; }
+        else if(tech === 'blue') { glowColor = '#0033ff'; nameEl.innerText = "Limitless Technique: Blue"; bloomPass.strength = 3.0; }
+        else if(tech === 'blackflash') { glowColor = '#000000'; nameEl.innerText = "Black Flash"; bloomPass.strength = 5.0; }
         else { glowColor = '#00ffff'; nameEl.innerText = "Neutral State"; bloomPass.strength = 1.0; }
 
         for(let i=0; i<COUNT; i++) {
@@ -221,6 +243,8 @@
                 } else p = { x:0, y:0, z:0, r:0, g:0, b:0, s:0 };
             }
             else if(tech === 'red') p = getRed(i);
+            else if(tech === 'blue') p = getBlue(i);
+            else if(tech === 'blackflash') p = getBlackFlash(i);
             else if(tech === 'void') p = getVoid(i);
             else if(tech === 'purple') p = getPurple(i);
             else if(tech === 'shrine') p = getShrine(i);
@@ -267,6 +291,12 @@
         // UPDATED ROTATION LOGIC: Locking rotation for Shrine
         if(currentTech === 'red') {
             particles.rotation.z -= 0.1;
+        } else if (currentTech === 'blue') {
+            particles.rotation.y += 0.02;
+            particles.rotation.z += 0.01;
+        } else if (currentTech === 'blackflash') {
+            particles.rotation.x += 0.3;
+            particles.rotation.y += 0.3;
         } else if (currentTech === 'purple') {
             particles.rotation.z += 0.2; 
             particles.rotation.y += 0.05;
