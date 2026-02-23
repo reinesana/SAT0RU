@@ -57,6 +57,43 @@
             pointer-events: none; z-index: 5;
             background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
         }
+
+        #debug-panel {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            z-index: 50;
+            display: none;
+            min-width: 280px;
+            padding: 10px 12px;
+            border: 1px solid rgba(0, 255, 255, 0.35);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.75);
+            color: #b9ffff;
+            font: 12px/1.35 "Courier New", monospace;
+            white-space: pre;
+            pointer-events: none;
+        }
+
+        #bg-audio {
+            display: none;
+        }
+
+        #keybind-menu {
+            position: absolute;
+            top: 12px;
+            left: 12px;
+            z-index: 50;
+            min-width: 240px;
+            padding: 10px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.62);
+            color: #f0f7ff;
+            font: 12px/1.35 "Courier New", monospace;
+            white-space: pre;
+            pointer-events: none;
+        }
     </style>
     
     <script type="importmap">
@@ -72,6 +109,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
 </head>
 <body>
+    <audio id="bg-audio" src="ost.mp3" preload="auto" loop></audio>
 
     <div id="grain"></div>
 
@@ -84,6 +122,8 @@
         <video class="input_video"></video>
         <canvas id="output_canvas"></canvas>
     </div>
+    <div id="keybind-menu"></div>
+    <div id="debug-panel"></div>
 
 <script type="module">
     import * as THREE from 'three';
@@ -99,8 +139,12 @@
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.domElement.style.position = 'fixed';
+    renderer.domElement.style.top = '0';
+    renderer.domElement.style.left = '0';
+    renderer.domElement.style.zIndex = '1';
+    renderer.domElement.style.pointerEvents = 'none';
     document.body.appendChild(renderer.domElement);
-
     const composer = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
     const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
@@ -115,12 +159,22 @@
     const targetPositions = new Float32Array(COUNT * 3);
     const targetColors = new Float32Array(COUNT * 3);
     const targetSizes = new Float32Array(COUNT);
+    const purpleExplosionSourcePositions = new Float32Array(COUNT * 3);
+    const purpleExplosionSourceSizes = new Float32Array(COUNT);
 
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
 
-    const particles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.3, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+    const particleMaterial = new THREE.PointsMaterial({
+        size: 0.3,
+        vertexColors: true,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthWrite: false
+    });
+
+    const particles = new THREE.Points(geometry, particleMaterial);
     scene.add(particles);
 
     // Technique Functions 
@@ -169,48 +223,447 @@
     }
 
     // Hand Tracking
+    // --- Gesture Tuning Knobs (safe to change) ---
+    // Keep tuning changes in this object. Core logic below should stay stable unless you are rewriting detection behavior.
+    const TUNING = {
+        smoothingAlpha: 0.20, // Higher reacts faster; lower is more stable.
+        enterThreshold: 0.75, // Minimum smoothed score to enter a gesture.
+        exitThreshold: 0.5, // If current gesture stays above this, it is held.
+        switchMargin: 0.12, // Immediate switch: challenger must beat current by at least this amount.
+        sustainedSwitchMs: 300, // Timed switch: if a challenger stays stronger for this long, it can override.
+        sustainedSwitchMargin: 0.03, // Minimum lead required for the timed override path.
+
+        purpleExplosionDurationMs: 4000, // How long the Purple explosion impulse lasts.
+        purpleExplosionMaxDistance: 100, // Total outward travel from the live Purple target shape.
+        purpleExplosionBloomBoost: 3, // Temporary extra bloom added on top of base technique bloom.
+        postExplosionNeutralMs: 1000 // Force neutral for this long after the explosion completes.
+    };
+
+    // --- Hand Tracking Core (avoid changing unless logic changes are intended) ---
     let currentTech = 'neutral';
+    let purpleEnteredAtMs = -Infinity;
+    let purpleFlickEligibleUntilMs = 0;
     let shakeIntensity = 0;
+    const FLICK = {
+        purpleArmMs: 1000,
+        flickOnlyWindowMs: 280,
+        maxWindowMs: 220,
+        minLagMs: 45,
+        minDisplacement: 0.040,
+        maxDisplacement: 0.13,
+        minSpeed: 0.8,
+        maxSpeed: 2.2,
+        minStraightness: 0.65,
+        maxStraightness: 0.92,
+        triggerScore: 0.72,
+        pulseMs: 180,
+        refractoryMs: 220
+    };
     const videoElement = document.querySelector('.input_video');
     const canvasElement = document.getElementById('output_canvas');
     const canvasCtx = canvasElement.getContext('2d');
     let glowColor = '#00ffff';
+    const GESTURES = ['neutral', 'red', 'void', 'purple', 'shrine', 'flick'];
+    const ACTIVE_GESTURES = ['red', 'void', 'purple', 'shrine', 'flick'];
+    const smoothedScores = { neutral: 1, red: 0, void: 0, purple: 0, shrine: 0, flick: 0 };
+    const rawScores = { neutral: 1, red: 0, void: 0, purple: 0, shrine: 0, flick: 0 };
+    let challengerGesture = null;
+    let challengerSinceMs = 0;
+    let frameFlickScore = 0;
+    let purpleExplosionUntilMs = 0;
+    let lastPurpleExplosionMs = -Infinity;
+    let flickLockUntilMs = 0;
+    let flickPulseUntilMs = 0;
+    let lastFlickTriggerMs = -Infinity;
+    let pendingPurpleExitFlick = false;
+    let neutralLockUntilMs = 0;
+    let baseBloomStrength = 1.0;
+    const PURPLE_EXPLOSION_COLOR = { r: 0.6, g: 0.5, b: 1.0 };
+    const flickDetectorByHand = {};
+    const debugPanel = document.getElementById('debug-panel');
+    const keybindMenu = document.getElementById('keybind-menu');
+    const musicAudio = document.getElementById('bg-audio');
+    let debugEnabled = new URLSearchParams(window.location.search).get('debug') === '1';
+    let musicEnabled = false;
+    let keybindMenuVisible = true;
+    const KEYBINDS = { debug: 'D', music: 'M', menu: 'K' };
+
+    function clamp01(v) {
+        return Math.min(1, Math.max(0, v));
+    }
+
+    function computeHandScores(lm) {
+        const isUp = (tip, pip) => lm[tip].y < lm[pip].y;
+        const indexUp = isUp(8, 6) ? 1 : 0;
+        const middleUp = isUp(12, 10) ? 1 : 0;
+        const ringUp = isUp(16, 14) ? 1 : 0;
+        const pinkyUp = isUp(20, 18) ? 1 : 0;
+
+        const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
+        const pinchScore = pinch < 0.04 ? 1 : 0; // Original hardcoded purple pinch rule.
+
+        const purple = pinchScore;
+        const shrine = clamp01(0.25 * (indexUp + middleUp + ringUp + pinkyUp));
+        const voidScore = clamp01((0.45 * indexUp) + (0.45 * middleUp) + (0.10 * (1 - ringUp)));
+        const redBase = clamp01((0.65 * indexUp) + (0.20 * (1 - middleUp)) + (0.10 * (1 - ringUp)) + (0.05 * (1 - pinkyUp)));
+        const red = clamp01(redBase * (1 - (0.70 * middleUp)));
+
+        const pinchSuppression = 1 - (pinchScore * 0.45);
+        return {
+            red: clamp01(red * pinchSuppression),
+            void: clamp01(voidScore * pinchSuppression),
+            purple: purple,
+            shrine: clamp01(shrine * (1 - (pinchScore * 0.25)))
+        };
+    }
+
+    function computeFrameScores(results, nowMs) {
+        const frameScores = { neutral: 1, red: 0, void: 0, purple: 0, shrine: 0, flick: 0 };
+        frameFlickScore = 0;
+        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) return frameScores;
+
+        results.multiHandLandmarks.forEach((lm, handIdx) => {
+            drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, { color: glowColor, lineWidth: 5 });
+            drawLandmarks(canvasCtx, lm, { color: '#fff', lineWidth: 1, radius: 2 });
+
+            const handScores = computeHandScores(lm);
+            ACTIVE_GESTURES.forEach((tech) => {
+                if (!Object.prototype.hasOwnProperty.call(handScores, tech)) return;
+                frameScores[tech] = Math.max(frameScores[tech], handScores[tech]);
+            });
+
+            // Flick detection: wrist-relative motion over a short window with straightness filtering.
+            const handLabel = results.multiHandedness?.[handIdx]?.label ?? `hand_${handIdx}`;
+            const wrist = lm[0];
+            const tip = lm[8];
+            const relX = tip.x - wrist.x;
+            const relY = tip.y - wrist.y;
+            const indexUp = lm[8].y < lm[6].y;
+
+            const detector = flickDetectorByHand[handLabel] || { history: [] };
+            const history = detector.history;
+            history.push({ x: relX, y: relY, t: nowMs });
+
+            while (history.length > 0 && (nowMs - history[0].t) > FLICK.maxWindowMs) {
+                history.shift();
+            }
+
+            let baseline = null;
+            for (let i = history.length - 1; i >= 0; i--) {
+                const sample = history[i];
+                if ((nowMs - sample.t) >= FLICK.minLagMs) {
+                    baseline = sample;
+                    break;
+                }
+            }
+            if (!baseline && history.length > 0) {
+                baseline = history[0];
+            }
+
+            if (baseline) {
+                const dtSec = Math.max((nowMs - baseline.t) / 1000, 1 / 120);
+                const dx = relX - baseline.x;
+                const dy = relY - baseline.y;
+                const displacement = Math.hypot(dx, dy);
+                const speed = displacement / dtSec;
+
+                let pathLength = 0;
+                for (let i = 1; i < history.length; i++) {
+                    pathLength += Math.hypot(history[i].x - history[i - 1].x, history[i].y - history[i - 1].y);
+                }
+                const straightness = pathLength > 0.0001 ? (displacement / pathLength) : 0;
+
+                const speedScore = clamp01((speed - FLICK.minSpeed) / (FLICK.maxSpeed - FLICK.minSpeed));
+                const dispScore = clamp01((displacement - FLICK.minDisplacement) / (FLICK.maxDisplacement - FLICK.minDisplacement));
+                const straightScore = clamp01((straightness - FLICK.minStraightness) / (FLICK.maxStraightness - FLICK.minStraightness));
+                let handFlickScore = (0.5 * speedScore) + (0.35 * dispScore) + (0.15 * straightScore);
+                if (!indexUp) handFlickScore *= 0.7;
+                frameFlickScore = Math.max(frameFlickScore, handFlickScore);
+
+                const flickTriggered = handFlickScore >= FLICK.triggerScore
+                    && (nowMs - lastFlickTriggerMs) >= FLICK.refractoryMs;
+                if (flickTriggered) {
+                    lastFlickTriggerMs = nowMs;
+                    flickPulseUntilMs = nowMs + FLICK.pulseMs;
+                }
+            }
+            flickDetectorByHand[handLabel] = detector;
+        });
+
+        frameScores.flick = nowMs <= flickPulseUntilMs ? 1 : 0;
+        const maxActive = Math.max(frameScores.red, frameScores.void, frameScores.purple, frameScores.shrine, frameScores.flick);
+        frameScores.neutral = clamp01(1 - maxActive);
+        return frameScores;
+    }
+
+    function smoothScores(frameScores) {
+        GESTURES.forEach((tech) => {
+            if (tech === 'flick') {
+                // Flick should be immediate; do not smooth it.
+                smoothedScores[tech] = frameScores[tech];
+                return;
+            }
+            smoothedScores[tech] += (frameScores[tech] - smoothedScores[tech]) * TUNING.smoothingAlpha;
+        });
+    }
+
+    function scoreText(value) {
+        return Number.isFinite(value) ? value.toFixed(3) : '0.000';
+    }
+
+    function setDebugVisibility() {
+        debugPanel.style.display = debugEnabled ? 'block' : 'none';
+    }
+
+    function updateKeybindMenu() {
+        if (!keybindMenuVisible) return;
+        keybindMenu.textContent = [
+            'Keybinds',
+            `[${KEYBINDS.music}] Soundtrack: ${musicEnabled ? 'ON' : 'OFF'}`,
+            `[${KEYBINDS.debug}] Debug Panel: ${debugEnabled ? 'ON' : 'OFF'}`,
+            `[${KEYBINDS.menu}] This Menu: ON`
+        ].join('\n');
+    }
+
+    function setMusicEnabled(enabled) {
+        if (!musicAudio) {
+            musicEnabled = false;
+            updateKeybindMenu();
+            return;
+        }
+
+        if (enabled) {
+            musicAudio.volume = 0.65;
+            const playPromise = musicAudio.play();
+            musicEnabled = true;
+            if (playPromise && typeof playPromise.catch === 'function') {
+                playPromise.catch(() => {
+                    musicEnabled = false;
+                    updateKeybindMenu();
+                });
+            }
+        } else {
+            musicAudio.pause();
+            musicEnabled = false;
+        }
+
+        updateKeybindMenu();
+    }
+
+    function setKeybindMenuVisibility(visible) {
+        keybindMenuVisible = visible;
+        keybindMenu.style.display = keybindMenuVisible ? 'block' : 'none';
+        if (keybindMenuVisible) updateKeybindMenu();
+    }
+
+    function updateDebugPanel(nextGesture) {
+        if (!debugEnabled) return;
+        const nowMs = performance.now();
+        const explosionLeftMs = Math.max(0, purpleExplosionUntilMs - nowMs);
+        const flickPulseLeftMs = Math.max(0, flickPulseUntilMs - nowMs);
+        const purpleFlickEligibleLeftMs = Math.max(0, purpleFlickEligibleUntilMs - nowMs);
+        const lines = [
+            'Debug (toggle: D)',
+            `currentTech: ${currentTech}`,
+            `nextGesture: ${nextGesture}`,
+            `flickScore: ${scoreText(frameFlickScore)}`,
+            `flickPulse: ${flickPulseLeftMs.toFixed(0)}ms`,
+            `purpleFlickEligible: ${purpleFlickEligibleLeftMs.toFixed(0)}ms`,
+            `purpleExplosion: ${explosionLeftMs.toFixed(0)}ms`,
+            '',
+            'gesture   raw      smooth',
+            ...GESTURES.map((tech) => {
+                const name = tech.padEnd(8, ' ');
+                return `${name}${scoreText(rawScores[tech])}   ${scoreText(smoothedScores[tech])}`;
+            })
+        ];
+        debugPanel.textContent = lines.join('\n');
+    }
+
+    function triggerPurpleExplosion(nowMs) {
+        if ((nowMs - lastPurpleExplosionMs) < 400) return;
+        lastPurpleExplosionMs = nowMs;
+        purpleExplosionUntilMs = nowMs + TUNING.purpleExplosionDurationMs;
+        neutralLockUntilMs = purpleExplosionUntilMs + TUNING.postExplosionNeutralMs;
+    }
+
+    function maybeTriggerPurpleExitExplosion(nextGesture, nowMs) {
+        const purpleArmed = nowMs <= purpleFlickEligibleUntilMs;
+        const enteringFlick = nextGesture === 'flick' && currentTech !== 'flick';
+        if (!purpleArmed || !enteringFlick) return;
+        flickLockUntilMs = Math.max(flickLockUntilMs, nowMs + TUNING.purpleExplosionDurationMs);
+        triggerPurpleExplosion(nowMs);
+    }
+
+    function resetChallenger() {
+        challengerGesture = null;
+        challengerSinceMs = 0;
+    }
+
+    function commitTransition(nextGesture, nowMs) {
+        resetChallenger();
+        return nextGesture;
+    }
+
+    function pickGestureFromScores(nowMs) {
+        if (currentTech === 'flick' && nowMs < flickLockUntilMs) {
+            return 'flick';
+        }
+        if (nowMs >= purpleExplosionUntilMs && nowMs < neutralLockUntilMs) {
+            return currentTech === 'neutral' ? 'neutral' : commitTransition('neutral', nowMs);
+        }
+
+        // Flick-only window after exiting Purple: ignore all other gestures.
+        if (nowMs <= purpleFlickEligibleUntilMs && currentTech !== 'flick') {
+            const flickReady = pendingPurpleExitFlick || nowMs <= flickPulseUntilMs || rawScores.flick >= 1;
+            if (flickReady) {
+                pendingPurpleExitFlick = false;
+                return commitTransition('flick', nowMs);
+            }
+            if (nowMs >= purpleFlickEligibleUntilMs) pendingPurpleExitFlick = false;
+            return currentTech === 'neutral' ? 'neutral' : commitTransition('neutral', nowMs);
+        }
+
+        let bestGesture = 'neutral';
+        let bestScore = 0;
+
+        ACTIVE_GESTURES.forEach((tech) => {
+            // Outside flick-only window, normal gesture competition excludes flick.
+            if (tech === 'flick') return;
+            if (smoothedScores[tech] > bestScore) {
+                bestScore = smoothedScores[tech];
+                bestGesture = tech;
+            }
+        });
+
+        const activeScore = currentTech === 'neutral' ? smoothedScores.neutral : smoothedScores[currentTech];
+
+        if (currentTech !== 'neutral') {
+            const challengerIsStronger = bestGesture !== currentTech
+                && bestScore >= TUNING.enterThreshold
+                && (bestScore - activeScore) >= TUNING.switchMargin;
+
+            if (challengerIsStronger) {
+                return commitTransition(bestGesture, nowMs);
+            }
+
+            const hasTimedChallenger = bestGesture !== currentTech
+                && bestScore >= TUNING.enterThreshold
+                && bestScore > activeScore;
+
+            if (hasTimedChallenger) {
+                if (challengerGesture !== bestGesture) {
+                    challengerGesture = bestGesture;
+                    challengerSinceMs = nowMs;
+                } else {
+                    const heldMs = nowMs - challengerSinceMs;
+                    const timedOverrideReady = heldMs >= TUNING.sustainedSwitchMs
+                        && (bestScore - activeScore) >= TUNING.sustainedSwitchMargin;
+                    if (timedOverrideReady) {
+                        return commitTransition(bestGesture, nowMs);
+                    }
+                }
+            } else {
+                resetChallenger();
+            }
+
+            if (activeScore >= TUNING.exitThreshold) {
+                return currentTech;
+            }
+
+            return commitTransition('neutral', nowMs);
+        }
+
+        resetChallenger();
+        if (bestScore < TUNING.enterThreshold) {
+            return 'neutral';
+        }
+
+        return commitTransition(bestGesture, nowMs);
+    }
+
+    setDebugVisibility();
+    setKeybindMenuVisibility(true);
+    updateKeybindMenu();
+    setMusicEnabled(false);
+    window.addEventListener('keydown', (event) => {
+        if (event.repeat) return;
+        const key = event.key.toLowerCase();
+        if (key === KEYBINDS.debug.toLowerCase()) {
+            debugEnabled = !debugEnabled;
+            setDebugVisibility();
+            if (debugEnabled) updateDebugPanel(currentTech);
+            updateKeybindMenu();
+            return;
+        }
+        if (key === KEYBINDS.music.toLowerCase()) {
+            setMusicEnabled(!musicEnabled);
+            return;
+        }
+        if (key === KEYBINDS.menu.toLowerCase()) {
+            setKeybindMenuVisibility(!keybindMenuVisible);
+        }
+    });
 
     const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
     hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7 });
 
     hands.onResults((results) => {
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        let detected = 'neutral';
+        const nowMs = performance.now();
 
-        if (results.multiHandLandmarks) {
-            results.multiHandLandmarks.forEach((lm) => {
-                drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, {color: glowColor, lineWidth: 5});
-                drawLandmarks(canvasCtx, lm, {color: '#fff', lineWidth: 1, radius: 2});
-
-                const isUp = (t, p) => lm[t].y < lm[p].y;
-                const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
-                
-                if (pinch < 0.04) detected = 'purple';
-                else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18)) detected = 'shrine';
-                else if (isUp(8,6) && isUp(12,10) && !isUp(16,14)) detected = 'void';
-                else if (isUp(8,6) && !isUp(12,10)) detected = 'red';
-            });
+        const frameScores = computeFrameScores(results, nowMs);
+        const purpleArmedNow = currentTech === 'purple' && (nowMs - purpleEnteredAtMs) >= FLICK.purpleArmMs;
+        if (purpleArmedNow && (frameScores.flick >= 1 || nowMs <= flickPulseUntilMs)) {
+            // Preserve flick intent even if the hand settles into another symbol right after the flick motion.
+            pendingPurpleExitFlick = true;
         }
-        updateState(detected);
+        const maxActive = Math.max(frameScores.red, frameScores.void, frameScores.purple, frameScores.shrine, frameScores.flick);
+        frameScores.neutral = clamp01(1 - maxActive);
+        GESTURES.forEach((tech) => { rawScores[tech] = frameScores[tech]; });
+        smoothScores(frameScores);
+        const nextGesture = pickGestureFromScores(nowMs);
+        maybeTriggerPurpleExitExplosion(nextGesture, nowMs);
+        updateState(nextGesture);
+        updateDebugPanel(nextGesture);
     });
 
-    function updateState(tech) {
-        if(currentTech === tech) return;
+    function updateState(tech, force = false) {
+        if(!force && currentTech === tech) return;
+        const prevTech = currentTech;
+        const nowMs = performance.now();
         currentTech = tech;
+        if (currentTech === 'flick') {
+            // Safety: if flick was manually entered, still lock it for a full release window.
+            flickLockUntilMs = Math.max(flickLockUntilMs, nowMs + TUNING.purpleExplosionDurationMs);
+        }
+        if (currentTech === 'purple') {
+            purpleEnteredAtMs = nowMs;
+            purpleFlickEligibleUntilMs = 0;
+            pendingPurpleExitFlick = false;
+        } else if (prevTech === 'purple') {
+            // After exiting Purple, open a short flick-only window if Purple was held long enough.
+            const purpleHeldLongEnough = (nowMs - purpleEnteredAtMs) >= FLICK.purpleArmMs;
+            purpleFlickEligibleUntilMs = purpleHeldLongEnough ? (nowMs + FLICK.flickOnlyWindowMs) : 0;
+            if (!purpleHeldLongEnough) pendingPurpleExitFlick = false;
+        } else if (nowMs > purpleFlickEligibleUntilMs && currentTech !== 'flick') {
+            pendingPurpleExitFlick = false;
+        }
         const nameEl = document.getElementById('technique-name');
         shakeIntensity = tech !== 'neutral' ? 0.4 : 0;
 
-        if(tech === 'shrine') { glowColor = '#ff0000'; nameEl.innerText = "Domain Expansion: Malevolent Shrine"; bloomPass.strength = 2.5; }
-        else if(tech === 'purple') { glowColor = '#bb00ff'; nameEl.innerText = "Secret Technique: Hollow Purple"; bloomPass.strength = 4.0; }
-        else if(tech === 'void') { glowColor = '#00ffff'; nameEl.innerText = "Domain Expansion: Infinite Void"; bloomPass.strength = 2.0; }
-        else if(tech === 'red') { glowColor = '#ff3333'; nameEl.innerText = "Reverse Cursed Technique: Red"; bloomPass.strength = 2.5; }
-        else { glowColor = '#00ffff'; nameEl.innerText = "Neutral State"; bloomPass.strength = 1.0; }
+        if(tech === 'shrine') { glowColor = '#ff0000'; nameEl.innerText = "Domain Expansion: Malevolent Shrine"; baseBloomStrength = 2.5; }
+        else if(tech === 'purple') { glowColor = '#bb00ff'; nameEl.innerText = "Secret Technique: Hollow Purple"; baseBloomStrength = 4.0; }
+        else if(tech === 'void') { glowColor = '#00ffff'; nameEl.innerText = "Domain Expansion: Infinite Void"; baseBloomStrength = 2.0; }
+        else if(tech === 'red') { glowColor = '#ff3333'; nameEl.innerText = "Reverse Cursed Technique: Red"; baseBloomStrength = 2.5; }
+        else if(tech === 'flick') { glowColor = '#bb88ff'; nameEl.innerText = "Hollow Purple: Release"; baseBloomStrength = 1.4; }
+        else { glowColor = '#00ffff'; nameEl.innerText = "Neutral State"; baseBloomStrength = 1.0; }
+        bloomPass.strength = baseBloomStrength;
+
+        if (tech === 'flick') {
+            // Keep current Purple-derived target shape while explosion animation runs.
+            return;
+        }
 
         for(let i=0; i<COUNT; i++) {
             let p;
@@ -228,8 +681,17 @@
             targetPositions[i*3] = p.x; targetPositions[i*3+1] = p.y; targetPositions[i*3+2] = p.z;
             targetColors[i*3] = p.r; targetColors[i*3+1] = p.g; targetColors[i*3+2] = p.b;
             targetSizes[i] = p.s;
+            if (tech === 'purple') {
+                // Explosion should always originate from a Purple shape, not from whatever symbol is active later.
+                purpleExplosionSourcePositions[i*3] = p.x;
+                purpleExplosionSourcePositions[i*3+1] = p.y;
+                purpleExplosionSourcePositions[i*3+2] = p.z;
+                purpleExplosionSourceSizes[i] = p.s;
+            }
         }
     }
+
+    updateState('neutral', true);
 
     const cameraUtils = new Camera(videoElement, {
         onFrame: async () => {
@@ -243,12 +705,6 @@
     // Animation
     function animate() {
         requestAnimationFrame(animate);
-        
-        if (shakeIntensity > 0) {
-            renderer.domElement.style.transform = `translate(${(Math.random()-0.5)*shakeIntensity*40}px, ${(Math.random()-0.5)*shakeIntensity*40}px)`;
-        } else {
-            renderer.domElement.style.transform = 'translate(0,0)';
-        }
 
         const pos = particles.geometry.attributes.position.array;
         const col = particles.geometry.attributes.color.array;
@@ -259,6 +715,57 @@
             col[i] += (targetColors[i] - col[i]) * 0.1;
         }
         for(let i=0; i<COUNT; i++) siz[i] += (targetSizes[i] - siz[i]) * 0.1;
+
+        const nowMs = performance.now();
+        const explosionTimeLeftMs = purpleExplosionUntilMs - nowMs;
+        if (explosionTimeLeftMs > 0) {
+            const life = explosionTimeLeftMs / TUNING.purpleExplosionDurationMs;
+            const progress = 1 - life;
+            const blastDistance = TUNING.purpleExplosionMaxDistance * (1 - Math.pow(1 - progress, 1.9));
+            for(let i=0; i<COUNT; i++) {
+                const idx = i * 3;
+                let sx = purpleExplosionSourcePositions[idx];
+                let sy = purpleExplosionSourcePositions[idx + 1];
+                let sz = purpleExplosionSourcePositions[idx + 2];
+                if (sx === 0 && sy === 0 && sz === 0) {
+                    sx = targetPositions[idx];
+                    sy = targetPositions[idx + 1];
+                    sz = targetPositions[idx + 2];
+                }
+                let dx = sx;
+                let dy = sy;
+                let dz = sz;
+                let len = Math.hypot(dx, dy, dz);
+                if (len < 0.001) {
+                    const a = (i / COUNT) * Math.PI * 2;
+                    const b = ((i * 13) % COUNT) / COUNT * Math.PI;
+                    dx = Math.cos(a) * Math.sin(b);
+                    dy = Math.sin(a) * Math.sin(b);
+                    dz = Math.cos(b);
+                    len = Math.max(Math.hypot(dx, dy, dz), 0.001);
+                }
+                const variance = 0.84 + ((i % 9) * 0.035);
+                const travel = blastDistance * variance;
+                pos[idx] = sx + ((dx / len) * travel);
+                pos[idx + 1] = sy + ((dy / len) * travel);
+                pos[idx + 2] = sz + ((dz / len) * travel);
+                col[idx] = PURPLE_EXPLOSION_COLOR.r;
+                col[idx + 1] = PURPLE_EXPLOSION_COLOR.g;
+                col[idx + 2] = PURPLE_EXPLOSION_COLOR.b;
+                siz[i] = purpleExplosionSourceSizes[i] > 0 ? purpleExplosionSourceSizes[i] : siz[i];
+            }
+            const bloomKick = TUNING.purpleExplosionBloomBoost * life;
+            bloomPass.strength = baseBloomStrength + bloomKick;
+            const effectiveShake = Math.max(shakeIntensity, 0.95 * life);
+            renderer.domElement.style.transform = `translate(${(Math.random()-0.5)*effectiveShake*40}px, ${(Math.random()-0.5)*effectiveShake*40}px)`;
+        } else {
+            bloomPass.strength = baseBloomStrength;
+            if (shakeIntensity > 0) {
+                renderer.domElement.style.transform = `translate(${(Math.random()-0.5)*shakeIntensity*40}px, ${(Math.random()-0.5)*shakeIntensity*40}px)`;
+            } else {
+                renderer.domElement.style.transform = 'translate(0,0)';
+            }
+        }
 
         particles.geometry.attributes.position.needsUpdate = true;
         particles.geometry.attributes.color.needsUpdate = true;
