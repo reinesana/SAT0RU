@@ -32,7 +32,6 @@
             text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
         }
 
-        /* Large Centered Camera Hub - Taller for Reel Context */
         #video-container {
             position: absolute;
             bottom: 2%;
@@ -179,26 +178,42 @@
     const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
     hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7 });
 
+    // --- FIXED HAND TRACKING ---
     hands.onResults((results) => {
         canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
         let detected = 'neutral';
 
-        if (results.multiHandLandmarks) {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             results.multiHandLandmarks.forEach((lm) => {
                 drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, {color: glowColor, lineWidth: 5});
                 drawLandmarks(canvasCtx, lm, {color: '#fff', lineWidth: 1, radius: 2});
 
                 const isUp = (t, p) => lm[t].y < lm[p].y;
                 const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
-                
-                if (pinch < 0.04) detected = 'purple';
-                else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18)) detected = 'shrine';
-                else if (isUp(8,6) && isUp(12,10) && !isUp(16,14)) detected = 'void';
-                else if (isUp(8,6) && !isUp(12,10)) detected = 'red';
+
+                let handGesture = 'neutral';
+
+                if (pinch < 0.04) {
+                    handGesture = 'purple';
+                } else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18)) {
+                    handGesture = 'shrine';
+                } else if (isUp(8,6) && isUp(12,10) && !isUp(16,14) && !isUp(20,18)) {
+                    handGesture = 'void';
+                } else if (isUp(8,6) && !isUp(12,10) && !isUp(16,14) && !isUp(20,18)) {
+                    handGesture = 'red';
+                }
+
+                // Priority: purple > shrine > void > red > neutral
+                const priority = ['neutral', 'red', 'void', 'shrine', 'purple'];
+                if (priority.indexOf(handGesture) > priority.indexOf(detected)) {
+                    detected = handGesture;
+                }
             });
         }
+
         updateState(detected);
     });
+    // --- END FIXED HAND TRACKING ---
 
     function updateState(tech) {
         if(currentTech === tech) return;
@@ -264,17 +279,14 @@
         particles.geometry.attributes.color.needsUpdate = true;
         particles.geometry.attributes.size.needsUpdate = true;
         
-        // UPDATED ROTATION LOGIC: Locking rotation for Shrine
         if(currentTech === 'red') {
             particles.rotation.z -= 0.1;
         } else if (currentTech === 'purple') {
             particles.rotation.z += 0.2; 
             particles.rotation.y += 0.05;
         } else if (currentTech === 'shrine') {
-            // FORCE UPRIGHT: Reset and freeze all rotations
             particles.rotation.set(0, 0, 0); 
         } else {
-            // Default Neutral rotation
             particles.rotation.y += 0.005;
         }
 
