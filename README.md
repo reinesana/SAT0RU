@@ -19,6 +19,10 @@ This project utilizes particles to render volume-based cursed techniques:
 * **Domain Expansion: Malevolent Shrine**
     * **Visuals:** A dark, ominous aura representing the King of Curses.
     * **Trigger:** Flat hand / Prayer gesture.
+* **Divine General: Mahoraga**
+    * **Visuals:** A giant golden Eight-Handled Wheel (法輪, hōrin).
+    * **Trigger:** all fingers down / fist gesture.
+
 
 ## Getting Started
 
