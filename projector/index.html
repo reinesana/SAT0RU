@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>JJK: Cursed Technique (Projector)</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', sans-serif; }
+    
+        #ui {
+            position: absolute;
+            top: 10%;
+            width: 100%;
+            text-align: center;
+            color: #fff;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        h1 { 
+            font-size: 3rem; margin: 0; letter-spacing: 10px; 
+            font-weight: 900; 
+            text-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            background: linear-gradient(to bottom, #fff, #888);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        #technique-name { 
+            font-size: 1.2rem; color: #00ffff; margin-top: 15px; 
+            font-weight: bold; letter-spacing: 4px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        /* Large Centered Camera Hub - Taller for Reel Context */
+        #video-container {
+            position: absolute;
+            bottom: 2%;
+            left: 18%;
+            transform: translateX(-50%) scaleX(-1);
+            width: 85vw;
+            max-width: 450px;
+            height: 42vh; 
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            z-index: 20;
+            background-color: #000; 
+            border-radius: 25px;
+            overflow: hidden;
+            box-shadow: 0 0 40px rgba(0,0,0,0.9);
+        }
+
+        video { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+        #output_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        #grain {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 5;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+        }
+
+        /* Controller Panel */
+        #controls {
+            position: absolute;
+            top: 20px; right: 20px;
+            z-index: 30;
+            display: flex; flex-direction: column; gap: 10px;
+            width: 240px;
+            color: #fff; font-size: 0.8rem; letter-spacing: 1px;
+        }
+        #controls button {
+            background: rgba(0, 255, 255, 0.08);
+            border: 1px solid rgba(0, 255, 255, 0.5);
+            color: #00ffff;
+            font-family: inherit; font-weight: bold; letter-spacing: 2px;
+            padding: 8px; border-radius: 6px; cursor: pointer;
+            text-transform: uppercase;
+        }
+        #controls button:hover { background: rgba(0, 255, 255, 0.2); }
+        #controls label { display: flex; flex-direction: column; gap: 4px; }
+        #calib-status { color: #888; }
+
+        #calibration {
+            position: fixed; inset: 0;
+            z-index: 40;
+            background: rgba(0, 0, 0, 0.92);
+            display: none;
+            flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+            color: #fff; text-align: center;
+        }
+        #calib_text { color: #00ffff; font-weight: bold; letter-spacing: 2px; max-width: 80vw; }
+        #calib_canvas { cursor: crosshair; border: 2px solid rgba(0, 255, 255, 0.5); }
+
+        /* Projector View */
+        #hint {
+            position: absolute;
+            top: 50%;
+            width: 100%;
+            transform: translateY(-50%);
+            text-align: center;
+            color: #00ffff;
+            letter-spacing: 2px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        .marker {
+            position: absolute;
+            width: 90px; height: 90px;
+            margin: -45px 0 0 -45px;
+            border-radius: 50%;
+            background: #fff;
+            color: #000;
+            font: bold 48px 'Courier New', sans-serif;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 20;
+        }
+        .marker.done { background: #333; color: #777; }
+        .marker.current { box-shadow: 0 0 60px 20px #fff; }
+
+        body.projector #ui, body.projector #video-container, body.projector #controls, body.projector #grain { display: none; }
+        body.controller #hint { display: none; }
+        body.fullscreen { cursor: none; }
+    </style>
+    
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+</head>
+<body>
+
+    <div id="grain"></div>
+
+    <div id="ui">
+        <h1>呪術廻戦</h1>
+        <div id="technique-name">CURSED ENERGY</div>
+    </div>
+
+    <div id="video-container">
+        <video class="input_video"></video>
+        <canvas id="output_canvas"></canvas>
+    </div>
+
+    <div id="controls">
+        <button id="open-projector">Open Projector</button>
+        <button id="calibrate">Calibrate</button>
+        <label>Effect size <input type="range" id="size" min="0.1" max="1.5" step="0.05"></label>
+        <label>Height above hand <input type="range" id="height" min="0" max="4" step="0.1"></label>
+        <div id="calib-status"></div>
+    </div>
+
+    <div id="calibration">
+        <div id="calib_text"></div>
+        <canvas id="calib_canvas"></canvas>
+        <div>Press Esc to cancel</div>
+    </div>
+
+    <div id="hint">Drag this window onto the projector, then click anywhere to go fullscreen</div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+    import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+    // The same page runs on the laptop (controller) and, opened with ?projector, on the projector.
+    const IS_PROJECTOR = new URLSearchParams(location.search).has('projector');
+    document.body.classList.add(IS_PROJECTOR ? 'projector' : 'controller');
+    const channel = new BroadcastChannel('sat0ru-projector');
+
+    // Calibration markers on the projector, normalised 0..1 with y pointing down.
+    const MARKERS = [
+        { x: 0.1, y: 0.1, label: 'top-left' },
+        { x: 0.9, y: 0.1, label: 'top-right' },
+        { x: 0.9, y: 0.9, label: 'bottom-right' },
+        { x: 0.1, y: 0.9, label: 'bottom-left' },
+    ];
+
+    const TECHNIQUES = {
+        neutral: { name: 'Neutral State', glow: '#00ffff', bloom: 1.0 },
+        shrine: { name: 'Domain Expansion: Malevolent Shrine', glow: '#ff0000', bloom: 2.5 },
+        purple: { name: 'Secret Technique: Hollow Purple', glow: '#bb00ff', bloom: 4.0 },
+        void: { name: 'Domain Expansion: Infinite Void', glow: '#00ffff', bloom: 2.0 },
+        red: { name: 'Reverse Cursed Technique: Red', glow: '#ff3333', bloom: 2.5 },
+    };
+
+    // --- Scene & Rendering ---
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.z = 55;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    document.body.appendChild(renderer.domElement);
+
+    const composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+    composer.addPass(bloomPass);
+
+    const COUNT = 20000;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(COUNT * 3);
+    const colors = new Float32Array(COUNT * 3);
+    const sizes = new Float32Array(COUNT);
+    
+    const targetPositions = new Float32Array(COUNT * 3);
+    const targetColors = new Float32Array(COUNT * 3);
+    const targetSizes = new Float32Array(COUNT);
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    const particles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.3, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
+    scene.add(particles);
+
+    // Technique Functions 
+    // Compact fingertip orb: white-hot core, dense red shell, jagged spikes of repulsive force.
+    function getRed(i) {
+        const t = i / COUNT;
+        if (t < 0.75) {
+            const theta = Math.random() * Math.PI * 2; const phi = Math.acos(2 * Math.random() - 1);
+            const dx = Math.sin(phi) * Math.cos(theta), dy = Math.sin(phi) * Math.sin(theta), dz = Math.cos(phi);
+            if (t < 0.08) {
+                const r = Math.random() * 3;
+                return { x: dx * r, y: dy * r, z: dz * r, r: 1.5, g: 0.6, b: 0.6, s: 2.5 };
+            }
+            const r = 3 + Math.pow(Math.random(), 1.5) * 8;
+            return { x: dx * r, y: dy * r, z: dz * r, r: 0.25, g: 0, b: 0, s: 1.2 };
+        }
+        const SPIKES = 24;
+        const k = i % SPIKES;
+        const phi = Math.acos(1 - 2 * (k + 0.5) / SPIKES); const theta = k * 2.39996;
+        const r = 6 + Math.random() * 14;
+        const jitter = 0.08 * r;
+        return {
+            x: r * Math.sin(phi) * Math.cos(theta) + (Math.random() - 0.5) * jitter,
+            y: r * Math.sin(phi) * Math.sin(theta) + (Math.random() - 0.5) * jitter,
+            z: r * Math.cos(phi) + (Math.random() - 0.5) * jitter,
+            r: 0.5, g: 0.03, b: 0.02, s: 1.0,
+        };
+    }
+
+    function getVoid(i) {
+        if (i < COUNT * 0.15) {
+            const angle = Math.random() * Math.PI * 2;
+            return { x: 26 * Math.cos(angle), y: 26 * Math.sin(angle), z: (Math.random()-0.5) * 1, r: 1, g: 1, b: 1, s: 2.5 };
+        } else {
+            const radius = 30 + Math.random() * 90;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            return { x: radius * Math.sin(phi) * Math.cos(theta), y: radius * Math.sin(phi) * Math.sin(theta), z: radius * Math.cos(phi), r: 0.1, g: 0.6, b: 1.0, s: 0.7 };
+        }
+    }
+
+    function getPurple(i) {
+        if (Math.random() > 0.8) return { x: (Math.random() - 0.5) * 100, y: (Math.random() - 0.5) * 100, z: (Math.random() - 0.5) * 100, r: 0.5, g: 0.5, b: 0.7, s: 0.8 };
+        const r = 20; const theta = Math.random() * Math.PI * 2; const phi = Math.acos(2 * Math.random() - 1);
+        return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi), r: 0.6, g: 0.5, b: 1.0, s: 2.5 };
+    }
+
+    function getShrine(i) {
+        const total = COUNT;
+        if (i < total * 0.3) return { x: (Math.random()-0.5)*80, y: -15, z: (Math.random()-0.5)*80, r: 0.4, g: 0, b: 0, s: 0.8 };
+        else if (i < total * 0.4) {
+            const px = ((i%4)<2?1:-1)*12; const pz = ((i%4)%2==0?1:-1)*8;
+            return { x: px+(Math.random()-0.5)*2, y: -15+Math.random()*30, z: pz+(Math.random()-0.5)*2, r: 0.2, g: 0.2, b: 0.2, s: 0.6 };
+        } else if (i < total * 0.6) {
+            const t = Math.random() * Math.PI * 2; const rad = Math.random() * 30;
+            const curve = Math.pow(rad/30, 2) * 10; 
+            return { x: rad*Math.cos(t), y: 15 - curve + (Math.random()*2), z: rad*Math.sin(t)*0.6, r: 0.6, g: 0, b: 0, s: 0.6 };
+        } else return { x: 0, y: 0, z: 0, r: 0, g: 0, b: 0, s: 0 };
+    }
+
+    let currentTech = 'neutral';
+    let shakeIntensity = 0;
+    // Screen position the effect is centred on, normalised 0..1 with y pointing down. null keeps it centred.
+    let anchor = null;
+    let effectScale = 1;
+
+    function setTechnique(tech) {
+        if(currentTech === tech) return;
+        currentTech = tech;
+        shakeIntensity = tech !== 'neutral' ? 0.4 : 0;
+        bloomPass.strength = TECHNIQUES[tech].bloom;
+
+        for(let i=0; i<COUNT; i++) {
+            let p;
+            if(tech === 'neutral') {
+                if(i < COUNT * 0.05) {
+                    const r = 15 + Math.random()*20; const t = Math.random()*6.28; const ph = Math.random()*3.14;
+                    p = { x: r*Math.sin(ph)*Math.cos(t), y: r*Math.sin(ph)*Math.sin(t), z: r*Math.cos(ph), r: 0.1, g: 0.1, b: 0.2, s: 0.4 };
+                } else p = { x:0, y:0, z:0, r:0, g:0, b:0, s:0 };
+            }
+            else if(tech === 'red') p = getRed(i);
+            else if(tech === 'void') p = getVoid(i);
+            else if(tech === 'purple') p = getPurple(i);
+            else if(tech === 'shrine') p = getShrine(i);
+            
+            targetPositions[i*3] = p.x; targetPositions[i*3+1] = p.y; targetPositions[i*3+2] = p.z;
+            targetColors[i*3] = p.r; targetColors[i*3+1] = p.g; targetColors[i*3+2] = p.b;
+            targetSizes[i] = p.s;
+        }
+    }
+
+    function anchorToWorld() {
+        const halfHeight = camera.position.z * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+        const halfWidth = halfHeight * camera.aspect;
+        return { x: (anchor.x * 2 - 1) * halfWidth, y: (1 - anchor.y * 2) * halfHeight };
+    }
+
+    // Animation
+    function animate() {
+        requestAnimationFrame(animate);
+        
+        if (shakeIntensity > 0) {
+            renderer.domElement.style.transform = `translate(${(Math.random()-0.5)*shakeIntensity*40}px, ${(Math.random()-0.5)*shakeIntensity*40}px)`;
+        } else {
+            renderer.domElement.style.transform = 'translate(0,0)';
+        }
+
+        if (anchor) {
+            const target = anchorToWorld();
+            particles.position.x += (target.x - particles.position.x) * 0.35;
+            particles.position.y += (target.y - particles.position.y) * 0.35;
+        }
+        particles.scale.setScalar(effectScale);
+
+        const pos = particles.geometry.attributes.position.array;
+        const col = particles.geometry.attributes.color.array;
+        const siz = particles.geometry.attributes.size.array;
+
+        for(let i=0; i<COUNT*3; i++) {
+            pos[i] += (targetPositions[i] - pos[i]) * 0.1;
+            col[i] += (targetColors[i] - col[i]) * 0.1;
+        }
+        for(let i=0; i<COUNT; i++) siz[i] += (targetSizes[i] - siz[i]) * 0.1;
+
+        particles.geometry.attributes.position.needsUpdate = true;
+        particles.geometry.attributes.color.needsUpdate = true;
+        particles.geometry.attributes.size.needsUpdate = true;
+        
+        // UPDATED ROTATION LOGIC: Locking rotation for Shrine
+        if(currentTech === 'red') {
+            particles.rotation.z -= 0.1;
+            particles.rotation.y += 0.04;
+        } else if (currentTech === 'purple') {
+            particles.rotation.z += 0.2; 
+            particles.rotation.y += 0.05;
+        } else if (currentTech === 'shrine') {
+            // FORCE UPRIGHT: Reset and freeze all rotations
+            particles.rotation.set(0, 0, 0); 
+        } else {
+            // Default Neutral rotation
+            particles.rotation.y += 0.005;
+        }
+
+        composer.render();
+    }
+    animate();
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        composer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // --- Camera-to-Projector Mapping ---
+    // 3x3 perspective transform (row-major, h33 = 1) mapping 4 src points onto 4 dst points.
+    function computeHomography(src, dst) {
+        const A = [];
+        const b = [];
+        for (let i = 0; i < 4; i++) {
+            const { x, y } = src[i];
+            const { x: u, y: v } = dst[i];
+            A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+            A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+        }
+        const h = solve(A, b);
+        return h ? [...h, 1] : null;
+    }
+
+    function applyHomography(H, { x, y }) {
+        const w = H[6] * x + H[7] * y + H[8];
+        return {
+            x: (H[0] * x + H[1] * y + H[2]) / w,
+            y: (H[3] * x + H[4] * y + H[5]) / w,
+        };
+    }
+
+    function solve(A, b) {
+        const n = b.length;
+        const M = A.map((row, i) => [...row, b[i]]);
+        for (let col = 0; col < n; col++) {
+            let pivot = col;
+            for (let r = col + 1; r < n; r++) {
+                if (Math.abs(M[r][col]) > Math.abs(M[pivot][col])) pivot = r;
+            }
+            if (Math.abs(M[pivot][col]) < 1e-10) return null;
+            [M[col], M[pivot]] = [M[pivot], M[col]];
+            for (let r = 0; r < n; r++) {
+                if (r === col) continue;
+                const f = M[r][col] / M[col][col];
+                for (let c = col; c <= n; c++) M[r][c] -= f * M[col][c];
+            }
+        }
+        return M.map((row, i) => row[n] / row[i]);
+    }
+
+    if (IS_PROJECTOR) startProjector();
+    else startController();
+
+    // --- Projector View ---
+    function startProjector() {
+        const hint = document.getElementById('hint');
+
+        const markerEls = MARKERS.map((m, i) => {
+            const el = document.createElement('div');
+            el.className = 'marker';
+            el.textContent = i + 1;
+            el.style.left = `${m.x * 100}%`;
+            el.style.top = `${m.y * 100}%`;
+            document.body.appendChild(el);
+            return el;
+        });
+
+        function showMarkers(active, step) {
+            renderer.domElement.style.visibility = active ? 'hidden' : 'visible';
+            markerEls.forEach((el, i) => {
+                el.style.display = active ? 'flex' : 'none';
+                el.classList.toggle('done', i < step);
+                el.classList.toggle('current', i === step);
+            });
+        }
+
+        channel.onmessage = ({ data }) => {
+            if (data.type === 'state') {
+                setTechnique(data.tech);
+                if (data.anchor) anchor = data.anchor;
+            } else if (data.type === 'settings') {
+                effectScale = data.size;
+            } else if (data.type === 'calibrate') {
+                showMarkers(data.active, data.step);
+            }
+        };
+        channel.postMessage({ type: 'hello' });
+
+        document.addEventListener('click', () => {
+            if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+        });
+        document.addEventListener('fullscreenchange', () => {
+            const isFullscreen = !!document.fullscreenElement;
+            hint.style.display = isFullscreen ? 'none' : 'block';
+            document.body.classList.toggle('fullscreen', isFullscreen);
+        });
+    }
+
+    // --- Controller (Laptop) View ---
+    function startController() {
+        const STORAGE_KEY = 'sat0ru-projection';
+        const settings = { homography: null, size: 0.35, height: 1.5, ...JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') };
+
+        const sizeInput = document.getElementById('size');
+        const heightInput = document.getElementById('height');
+        const calibStatus = document.getElementById('calib-status');
+        sizeInput.value = settings.size;
+        heightInput.value = settings.height;
+
+        function saveSettings() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+            channel.postMessage({ type: 'settings', size: settings.size });
+            calibStatus.innerText = settings.homography ? 'Projector calibrated' : 'Not calibrated';
+        }
+        saveSettings();
+
+        sizeInput.addEventListener('input', () => { settings.size = parseFloat(sizeInput.value); saveSettings(); });
+        heightInput.addEventListener('input', () => { settings.height = parseFloat(heightInput.value); saveSettings(); });
+        document.getElementById('open-projector').addEventListener('click', () => {
+            window.open('?projector', 'sat0ru-projector', 'width=1280,height=720');
+        });
+        document.getElementById('calibrate').addEventListener('click', startCalibration);
+
+        // Hand Tracking
+        const videoElement = document.querySelector('.input_video');
+        const canvasElement = document.getElementById('output_canvas');
+        const canvasCtx = canvasElement.getContext('2d');
+        const nameEl = document.getElementById('technique-name');
+        let glowColor = '#00ffff';
+
+        const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+        hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.7 });
+
+        hands.onResults((results) => {
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            let detected = 'neutral';
+            let anchorHand = null;
+
+            if (results.multiHandLandmarks) {
+                results.multiHandLandmarks.forEach((lm) => {
+                    drawConnectors(canvasCtx, lm, HAND_CONNECTIONS, {color: glowColor, lineWidth: 5});
+                    drawLandmarks(canvasCtx, lm, {color: '#fff', lineWidth: 1, radius: 2});
+
+                    const isUp = (t, p) => lm[t].y < lm[p].y;
+                    const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
+                    
+                    let tech = 'neutral';
+                    if (pinch < 0.04) tech = 'purple';
+                    else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18)) tech = 'shrine';
+                    else if (isUp(8,6) && isUp(12,10) && !isUp(16,14)) tech = 'void';
+                    else if (isUp(8,6) && !isUp(12,10)) tech = 'red';
+
+                    if (tech !== 'neutral') { detected = tech; anchorHand = lm; }
+                    else if (!anchorHand) anchorHand = lm;
+                });
+            }
+            updateState(detected);
+            channel.postMessage({ type: 'state', tech: detected, anchor: anchorHand ? handToProjector(anchorHand, detected) : null });
+        });
+
+        // Where the effect sits in camera space, mapped onto the projector's screen:
+        // Red on the index fingertip, Purple at the pinch point, everything else above the palm.
+        function handToProjector(lm, tech) {
+            let point;
+            if (tech === 'red') {
+                point = { x: lm[8].x, y: lm[8].y };
+            } else if (tech === 'purple') {
+                point = { x: (lm[4].x + lm[8].x) / 2, y: (lm[4].y + lm[8].y) / 2 };
+            } else {
+                const palm = [0, 5, 9, 13, 17].reduce((p, i) => ({ x: p.x + lm[i].x / 5, y: p.y + lm[i].y / 5 }), { x: 0, y: 0 });
+                const handSize = Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y);
+                point = { x: palm.x, y: palm.y - handSize * settings.height };
+            }
+            return settings.homography ? applyHomography(settings.homography, point) : point;
+        }
+
+        function updateState(tech) {
+            if(tech === currentTech) return;
+            glowColor = TECHNIQUES[tech].glow;
+            nameEl.innerText = TECHNIQUES[tech].name;
+            setTechnique(tech);
+        }
+
+        // Projector Calibration
+        const calibOverlay = document.getElementById('calibration');
+        const calibCanvas = document.getElementById('calib_canvas');
+        const calibCtx = calibCanvas.getContext('2d');
+        const calibText = document.getElementById('calib_text');
+        const calib = { active: false, points: [] };
+
+        function broadcastCalibration() {
+            channel.postMessage({ type: 'calibrate', active: calib.active, step: calib.points.length });
+            const marker = MARKERS[calib.points.length];
+            if (marker) calibText.innerText = `Click the centre of marker ${calib.points.length + 1} (${marker.label}) on the wall in this camera view`;
+        }
+
+        function startCalibration() {
+            calib.active = true;
+            calib.points = [];
+            calibOverlay.style.display = 'flex';
+            broadcastCalibration();
+            drawCalibration();
+        }
+
+        function stopCalibration() {
+            calib.active = false;
+            calibOverlay.style.display = 'none';
+            broadcastCalibration();
+        }
+
+        // Drawn unmirrored so it matches MediaPipe's landmark coordinates and the audience's view of the wall.
+        function drawCalibration() {
+            if (!calib.active) return;
+            requestAnimationFrame(drawCalibration);
+            const vw = videoElement.videoWidth, vh = videoElement.videoHeight;
+            if (!vw) return;
+
+            if (calibCanvas.width !== vw || calibCanvas.height !== vh) {
+                calibCanvas.width = vw;
+                calibCanvas.height = vh;
+            }
+            const fit = Math.min(window.innerWidth * 0.9 / vw, window.innerHeight * 0.75 / vh);
+            calibCanvas.style.width = `${vw * fit}px`;
+            calibCanvas.style.height = `${vh * fit}px`;
+
+            calibCtx.drawImage(videoElement, 0, 0, vw, vh);
+            calib.points.forEach((p, i) => {
+                calibCtx.beginPath();
+                calibCtx.arc(p.x * vw, p.y * vh, 8, 0, Math.PI * 2);
+                calibCtx.fillStyle = '#00ffff';
+                calibCtx.fill();
+                calibCtx.font = 'bold 20px Courier New';
+                calibCtx.fillText(i + 1, p.x * vw + 12, p.y * vh - 12);
+            });
+        }
+
+        calibCanvas.addEventListener('click', (e) => {
+            const rect = calibCanvas.getBoundingClientRect();
+            calib.points.push({ x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
+            if (calib.points.length < MARKERS.length) {
+                broadcastCalibration();
+                return;
+            }
+            const homography = computeHomography(calib.points, MARKERS);
+            if (homography) {
+                settings.homography = homography;
+                saveSettings();
+            } else {
+                alert('Calibration failed: the four points were too close together or in a line. Try again.');
+            }
+            stopCalibration();
+        });
+
+        window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && calib.active) stopCalibration(); });
+
+        channel.onmessage = ({ data }) => {
+            if (data.type === 'hello') {
+                saveSettings();
+                broadcastCalibration();
+            }
+        };
+
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => {
+                canvasElement.width = videoElement.videoWidth;
+                canvasElement.height = videoElement.videoHeight;
+                await hands.send({image: videoElement});
+            }, width: 640, height: 480
+        });
+        cameraUtils.start();
+    }
+</script>
+</body>
+</html>
