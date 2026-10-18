@@ -123,7 +123,7 @@
     const particles = new THREE.Points(geometry, new THREE.PointsMaterial({ size: 0.3, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false }));
     scene.add(particles);
 
-    // Technique Functions 
+    // Technique Functions (changes if new technique is added)
     function getRed(i) {
         if(i < COUNT * 0.1) {
             const r = Math.random() * 9;
@@ -167,8 +167,164 @@
             return { x: rad*Math.cos(t), y: 15 - curve + (Math.random()*2), z: rad*Math.sin(t)*0.6, r: 0.6, g: 0, b: 0, s: 0.6 };
         } else return { x: 0, y: 0, z: 0, r: 0, g: 0, b: 0, s: 0 };
     }
+    let flag = 0;
+    let flag2 = 0;
 
-    // Hand Tracking
+    function getDivine(i) {
+
+        //circle
+        if (i < COUNT * 0.1) {
+            const angle = Math.random() * Math.PI * 2;
+            return { x: 26 * Math.cos(angle), y: 26 * Math.sin(angle), z: (Math.random()-0.5) * 1, r: 1, g: 0.84, b: 0, s: 2.5 }; // golden color for divine
+        } 
+
+        //centre sphere 
+        if(i < COUNT * 0.2) {
+            const r = Math.random() * 10;
+            const theta = Math.random() * 6.28; const phi = Math.acos(2 * Math.random() - 1);
+            return { x: r * Math.sin(phi) * Math.cos(theta), y: r * Math.sin(phi) * Math.sin(theta), z: r * Math.cos(phi), r: 1, g: 0.84, b: 0, s: 2.5 };
+        }
+        
+        //wheel sphere 
+        else if (i < COUNT * 0.3) {
+            //const py = ((i%4)<2?1:-1)*12; 
+            const y = 35;
+
+            const angle = Math.PI / 3; // 60 degrees for 6 circles
+            const thickness = 4.2;
+            const rotatedX = y * Math.sin(angle);
+            const rotatedY = y * Math.cos(angle);
+
+            if(flag == 0){ // first circle
+            flag = 1;
+            return { 
+                x: 0,
+                y: 35,
+                z: 0,
+                r: 1, g: 0.84, b: 0, s: 2.5 };
+            }
+
+            else if(flag == 1){ // second circle
+            flag = 2;
+            return { 
+                x: rotatedX,
+                y: rotatedY,
+                z: 0,
+                r: 1, g: 0.84, b: 0, s: 2.5 };
+            }
+
+            else if(flag == 2){ //  third circle
+            flag = 3;
+            return { 
+                x: y * Math.sin(angle *2),
+                y: y * Math.cos(angle *2),
+                z: 0,
+                r: 1, g: 0.84, b: 0, s: 2.5 };
+            }
+
+            else if(flag == 3){ // fourth circle
+            flag = 4;
+            return { 
+                x: y * Math.sin(angle *3),
+                y: y * Math.cos(angle *3),
+                z: 0,
+                r: 1, g: 0.84, b: 0, s: 2.5 };
+            }
+
+            else if(flag == 4){ // fifth circle
+            flag = 5;
+            return { 
+                x: y * Math.sin(angle *4),
+                y: y * Math.cos(angle *4),
+                z: 0,
+                r: 1, g: 0.84, b: 0, s: 2.5 };
+            }
+            
+            else if(flag == 5){ // sixth circle
+            flag = 0;
+            return { 
+                x: y * Math.sin(angle *5),
+                y: y * Math.cos(angle *5),
+                z: 0,
+                r: 1, g: 0.84, b: 0, s: 2.5 };
+            }
+        }
+
+        //wheel sphere 
+        else if (i < COUNT * 0.42) {
+            //const py = ((i%4)<2?1:-1)*12; 
+            const angle = Math.PI / 3;
+            const y = -35 + Math.random() * 70;
+            const thickness = 4.2;
+            const rotatedX = y * Math.sin(angle);
+            const rotatedY = y * Math.cos(angle);
+
+            if(flag2 == 0){ // first circle
+            flag2 = 1;
+            return { 
+                x: 0,
+                y: 35,
+                z: 0,
+                r: 1, g: 0.84, b: 0, s: 2.5 };
+            }
+
+            else if(flag2 == 1){ // second circle
+            flag2 = 2;
+            return { 
+                x: rotatedX,
+                y: rotatedY,
+                z: (Math.random() - 0.5) * thickness,
+                r: 1, g: 0.84, b: 0, s: 1.5 };
+            }
+
+            else if(flag2 == 2){ //  third circle
+            flag2 = 3;
+            return { 
+                x: y * Math.sin(angle*2),
+                y: y * Math.cos(angle*2),
+                z: (Math.random() - 0.5) * thickness,
+                r: 1, g: 0.84, b: 0, s: 1.5 };
+            }
+
+            else if(flag2 == 3){ // fourth circle
+            flag2 = 4;
+            return { 
+                x: y * Math.sin(angle*3),
+                y: y * Math.cos(angle*3),
+                z: (Math.random() - 0.5) * thickness,
+                r: 1, g: 0.84, b: 0, s: 1.5 };
+            }
+
+            else if(flag2 == 4){ // fifth circle
+            flag2 = 5;
+            return { 
+                x: y * Math.sin(angle*4),
+                y: y * Math.cos(angle*4),
+                z: (Math.random() - 0.5) * thickness,
+                r: 1, g: 0.84, b: 0, s: 1.5 };
+            }
+            
+            else if(flag2 == 5){ // sixth circle
+            flag2 = 0;
+            return { 
+                x: y * Math.sin(angle*5),
+                y: y * Math.cos(angle*5),
+                z: (Math.random() - 0.5) * thickness,
+                r: 1, g: 0.84, b: 0, s: 1.5 };
+            }
+            
+        }
+ 
+
+        else {
+            const radius = 30 + Math.random() * 90;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            return { x: radius * Math.sin(phi) * Math.cos(theta), y: radius * Math.sin(phi) * Math.sin(theta), z: radius * Math.cos(phi), r: 1, g: 1, b: 1.0, s: 0.7 };
+        }
+    }
+
+    // Hand Tracking (changes if new technique is added)
     let currentTech = 'neutral';
     let shakeIntensity = 0;
     const videoElement = document.querySelector('.input_video');
@@ -193,12 +349,15 @@
                 
                 if (pinch < 0.04) detected = 'purple';
                 else if (isUp(8,6) && isUp(12,10) && isUp(16,14) && isUp(20,18)) detected = 'shrine';
+                else if (!isUp(8,6) && !isUp(12,10) && !isUp(16,14) && !isUp(20,18)) detected = 'divine'; //new
                 else if (isUp(8,6) && isUp(12,10) && !isUp(16,14)) detected = 'void';
                 else if (isUp(8,6) && !isUp(12,10)) detected = 'red';
             });
         }
         updateState(detected);
     });
+
+    //changes if new technique is added - also updates bloom intensity and shake
 
     function updateState(tech) {
         if(currentTech === tech) return;
@@ -210,6 +369,7 @@
         else if(tech === 'purple') { glowColor = '#bb00ff'; nameEl.innerText = "Secret Technique: Hollow Purple"; bloomPass.strength = 4.0; }
         else if(tech === 'void') { glowColor = '#00ffff'; nameEl.innerText = "Domain Expansion: Infinite Void"; bloomPass.strength = 2.0; }
         else if(tech === 'red') { glowColor = '#ff3333'; nameEl.innerText = "Reverse Cursed Technique: Red"; bloomPass.strength = 2.5; }
+        else if(tech === 'divine') { glowColor = '#ffd700  '; nameEl.innerText = "Divine General: Mahoraga "; bloomPass.strength = 2.5; }
         else { glowColor = '#00ffff'; nameEl.innerText = "Neutral State"; bloomPass.strength = 1.0; }
 
         for(let i=0; i<COUNT; i++) {
@@ -224,6 +384,7 @@
             else if(tech === 'void') p = getVoid(i);
             else if(tech === 'purple') p = getPurple(i);
             else if(tech === 'shrine') p = getShrine(i);
+            else if(tech === 'divine') p = getDivine(i);
             
             targetPositions[i*3] = p.x; targetPositions[i*3+1] = p.y; targetPositions[i*3+2] = p.z;
             targetColors[i*3] = p.r; targetColors[i*3+1] = p.g; targetColors[i*3+2] = p.b;
@@ -240,7 +401,7 @@
     });
     cameraUtils.start();
 
-    // Animation
+    // Animation (changes if new technique is added - also updates rotation logic)
     function animate() {
         requestAnimationFrame(animate);
         
@@ -273,7 +434,15 @@
         } else if (currentTech === 'shrine') {
             // FORCE UPRIGHT: Reset and freeze all rotations
             particles.rotation.set(0, 0, 0); 
-        } else {
+        } 
+        else if (currentTech === 'divine') {
+            // FORCE UPRIGHT: Reset and freeze all rotations
+            
+            particles.rotation.y += 0.005;
+            particles.rotation.z += 0.005;
+        } 
+        
+        else {
             // Default Neutral rotation
             particles.rotation.y += 0.005;
         }
