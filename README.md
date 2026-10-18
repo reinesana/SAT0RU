@@ -28,7 +28,7 @@ You need a modern web browser (Chrome, Edge, Firefox) and a webcam.
 ### Installation
 1.  **Clone the repo**
     ```bash
-    git clone [https://github.com/reinesana/SAT0RU.git](https://github.com/reinesana/SAT0RU.git)
+    git clone https://github.com/reinesana/SAT0RU.git
     cd SAT0RU
     ```
 
