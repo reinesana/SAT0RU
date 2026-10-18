@@ -10,6 +10,9 @@ This project utilizes particles to render volume-based cursed techniques:
 * **Secret Technique: Hollow Purple**
     * **Visuals:** A chaotic singularity combining attraction and repulsion.
     * **Trigger:** "Pinch" gesture (Thumb + Index touching).
+* **Hollow Purple: Release**
+    * **Visuals:** A long outward explosion using Hollow Purple particle color and shape.
+    * **Trigger:** Hold Hollow Purple for at least 1 second, then perform a fast index-finger flick.
 * **Domain Expansion: Infinite Void**
     * **Visuals:** A multi-layered celestial domain featuring a bright event horizon ring, a vertical stream of infinite information, and a deep cosmos background.
     * **Trigger:** "Cross" gesture (Index + Middle fingers crossed).
@@ -34,6 +37,12 @@ You need a modern web browser (Chrome, Edge, Firefox) and a webcam.
 
 2.  **Run the project**
     **VS Code:** Install the "Live Server" extension, right-click `index.html`, and select "Open with Live Server".
+
+## Controls
+
+* `M`: Toggle soundtrack on/off.
+* `D`: Toggle debug panel on/off.
+* `K`: Toggle keybind menu on/off.
 
 ## Note 
 
